@@ -616,12 +616,9 @@ class ProactiveBubble(QWidget):
         self.is_read_more_expanded = False
         self.ask_input.clear()
 
-        if suggestion_type == 'syntax_error' and "Analyzing" not in reason:
-            self.is_expanded = True
-            self.panel.show()
-        else:
-            self.is_expanded = False
-            self.panel.hide()
+        # Always keep panel expanded
+        self.is_expanded = True
+        self.panel.show()
 
         self.content_label.setText(reason)
         if reason_long:
@@ -686,6 +683,7 @@ class ProactiveBubble(QWidget):
                 {"label": "Fix Error", "action": "fix_error"},
                 {"label": "Explain",   "action": "explain_error"},
                 {"label": "Show Code", "action": "show_code"},
+                {"label": "Review Code", "action": "explain_error"},
             ])
         else:
             suggestions = data.get('suggestions', [])
@@ -695,20 +693,25 @@ class ProactiveBubble(QWidget):
                         {"label": "Summarize",       "hint": "Summarize this content"},
                         {"label": "Fix Grammar",     "hint": "Fix grammar issues"},
                         {"label": "Improve Clarity", "hint": "Improve text clarity"},
+                        {"label": "Check Tone",      "hint": "Analyze the tone of the writing"},
                     ],
                     'reading_suggestion':      [
                         {"label": "Summarize Page",   "hint": "Summarize the visible page"},
                         {"label": "Explain Concepts", "hint": "Explain key concepts on this page"},
                         {"label": "Key Points",       "hint": "Extract key points as bullets"},
+                        {"label": "Deep Dive",        "hint": "Provide a deep analysis of the topics mentioned"},
                     ],
                     'pdf_suggestion':          [
                         {"label": "Summarize Page", "hint": "Summarize the visible PDF page"},
                         {"label": "Key Points",     "hint": "Extract key points"},
                         {"label": "Explain Terms",  "hint": "Explain technical terms"},
+                        {"label": "OCR Check",      "hint": "Verify text extraction accuracy"},
                     ],
                     'spreadsheet_suggestion':  [
                         {"label": "Explain Formula", "hint": "Explain visible formulas"},
                         {"label": "Analyze Data",    "hint": "Find patterns in visible data"},
+                        {"label": "Summarize Sheet", "hint": "Provide an overview of this sheet"},
+                        {"label": "Extract Totals",  "hint": "Identify sums or totals on screen"},
                     ],
                     'youtube_suggestion':      [
                         {"label": "Explain Topic", "hint": "Explain the video topic from title"},
@@ -717,10 +720,14 @@ class ProactiveBubble(QWidget):
                     'browser_suggestion':      [
                         {"label": "Summarize",  "hint": "Summarize this page"},
                         {"label": "Key Ideas",  "hint": "Extract key ideas from this page"},
+                        {"label": "Related Topics", "hint": "Find information related to this page"},
+                        {"label": "Page Analysis", "hint": "Provide a detailed analysis of the page structure"},
                     ],
                     'developer_suggestion':    [
                         {"label": "Explain Code", "hint": "Explain the visible code"},
                         {"label": "Find Issues",  "hint": "Identify potential issues in the code"},
+                        {"label": "Optimize Logic", "hint": "Suggest ways to make this code faster or cleaner"},
+                        {"label": "Check for bugs", "hint": "Check the visible code for potential issues or bugs."},
                     ],
                     'presentation_suggestion': [
                         {"label": "Improve Slide",  "hint": "Improve the current slide content"},
@@ -731,12 +738,14 @@ class ProactiveBubble(QWidget):
                         {"label": "Improve Prompt",  "hint": "Help me write a better prompt"},
                         {"label": "Follow-up Ideas", "hint": "Suggest follow-up questions"},
                         {"label": "Summarize Chat",  "hint": "Summarize the current conversation"},
+                        {"label": "Explain Response", "hint": "Explain the previous response in more detail"},
                     ],
                 }
                 suggestions = FALLBACKS.get(suggestion_type, [
                     {"label": "Summarize Content",   "hint": "Provide a summary of the visible page"},
                     {"label": "Key Takeaways",       "hint": "Extract the most important points"},
                     {"label": "Deep Analysis",       "hint": "Perform a detailed analysis of the elements"},
+                    {"label": "Next Steps",          "hint": "Suggest what to do next based on this content"},
                 ])
             self._add_suggestion_chips(suggestions)
 
@@ -948,8 +957,8 @@ class ProactiveBubble(QWidget):
         self.anim.stop()
         self.opacity_effect.setOpacity(1.0)
         self.current_data = None
-        self.is_expanded = False
-        self.panel.hide()
+        self.is_expanded = True # Keep expanded
+        self.panel.show() # Keep panel visible
         self._set_orb_state(self.STATE_IDLE)
         self.update_layout_pos()
         self.show()

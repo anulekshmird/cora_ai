@@ -136,14 +136,15 @@ Active App: {ctx.app} | Window: {ctx.window_title}
 {'='*40}
 
 TASK: "What are the most useful actions for the user right now?"
-Provide 3 to 5 SHORT, specific, actionable suggestion chips that are OBVIOUSLY derived from the visible content.
+Provide EXACTLY 4 SHORT, specific, actionable suggestion chips that are OBVIOUSLY derived from the visible content.
 
 SPECIFIC CONTEXT RULES:
 - If CODE is visible: suggest specific optimizations, explanations, or implementation steps (e.g. "Optimize loop in main.py").
+- MANDATORY CODE RULE: If you see code, one suggestion MUST have the label "Check for bugs" and a hint to check for common errors.
 - If an ERROR is visible: suggest specific debugging or fix actions (e.g. "Fix SyntaxError in line 42").
 - If WRITING/TEXT is visible: suggest grammar fixes, rewriting, or summarization (e.g. "Fix spelling in intro paragraph").
 - If DATA/TABLES are visible: suggest analysis or data extraction (e.g. "Calculate total from column B").
-- ALWAYS mention exact names (functions, variables, topics) found on the screen.
+- ALWAYS mention exact names (functions, variables, files, titles) found on the screen in the labels.
 
 Respond ONLY with a raw JSON block.
 
@@ -159,7 +160,7 @@ JSON FORMAT:
   "confidence": 1.0,
   "suggestions": [
      {{"label": "Specific Action 1", "hint": "Detailed prompt for chat"}},
-     ... (3 to 5 items)
+     ... (exactly 4 items)
   ]
 }}
 """
@@ -181,29 +182,35 @@ JSON FORMAT:
         except Exception as e:
             print(f"[AI ENGINE] Parse Error: {e}")
             # Intelligent fallback based on context
-            if ctx.app == 'editor' or ctx.activity == 'coding':
+            if ctx.app == 'editor' or ctx.activity == 'coding' or ctx.file_path:
+                 name = os.path.basename(ctx.file_path) if ctx.file_path else "code"
                  chips = [
-                     {"label": "Optimize Code", "hint": "How can I optimize this visible code?"},
+                     {"label": f"Optimize {name}", "hint": f"How can I optimize the code visible in {name}?"},
+                     {"label": "Check for bugs", "hint": "Check the visible code for potential issues or bugs."},
                      {"label": "Explain Logic", "hint": "Explain what this part of the code does."},
-                     {"label": "Check for Bugs", "hint": "Check the visible code for potential issues."}
+                     {"label": "Refactor Code", "hint": "Suggest ways to refactor this code for better readability."}
                  ]
             elif ctx.app in ('browser', 'chrome', 'firefox', 'edge'):
+                 target = ctx.page_title or "this page"
                  chips = [
-                     {"label": "Summarize Content", "hint": "Give me a summary of this page content."},
+                     {"label": f"Summarize {target}", "hint": f"Give me a summary of {target}."},
                      {"label": "Key Takeaways", "hint": "What are the most important points here?"},
+                     {"label": "Research Topic", "hint": "Find more information related to what's on screen."},
                      {"label": "Analyze Page", "hint": "Provide a detailed analysis of this page."}
                  ]
             elif ctx.activity == 'writing_document' or ctx.app == 'word':
                  chips = [
                      {"label": "Fix Grammar", "hint": "Correct any grammatical errors in the visible text."},
                      {"label": "Improve Wording", "hint": "Suggest ways to improve the clarity and flow."},
-                     {"label": "Continue Writing", "hint": "Help me continue writing this section."}
+                     {"label": "Continue Writing", "hint": "Help me continue writing this section."},
+                     {"label": "Check Structure", "hint": "Analyze the structure of this document."}
                  ]
             else:
                  chips = [
                      {"label": "How can I help?", "hint": "Suggest some things you can do for me here."},
                      {"label": "Analyze Screen", "hint": "Explain what I'm looking at right now."},
-                     {"label": "Summarize Visible Text", "hint": "Summarize the text currently on screen."}
+                     {"label": "Summarize Text", "hint": "Summarize the text currently on screen."},
+                     {"label": "Next Steps", "hint": "What should I do next based on this screen?"}
                  ]
             
             payload = {
@@ -215,9 +222,30 @@ JSON FORMAT:
 
         # Ensure essential fields exist
         payload.setdefault('suggestions', [])
-        if len(payload['suggestions']) < 3 and ctx.source != 'region':
-             # Pad if needed for "Exactly 3" UI expectation
-             pass
+        payload.setdefault('type', 'general')
+
+        # Enforce "Check for bugs" for coding context
+        is_coding = (ctx.app == 'editor' or ctx.activity == 'coding' or ctx.file_path)
+        if is_coding:
+             if payload['type'] == 'general':
+                 payload['type'] = 'developer_suggestion'
+             
+             # Check if "Check for bugs" is already there (case-insensitive)
+             has_bug_check = any("check for bugs" in s.get('label', '').lower() for s in payload['suggestions'])
+             if not has_bug_check:
+                 bug_chip = {"label": "Check for bugs", "hint": "Check the visible code for potential issues or bugs."}
+                 if len(payload['suggestions']) < 4:
+                     payload['suggestions'].append(bug_chip)
+                 else:
+                     # Replace the last one if already at 4
+                     payload['suggestions'][3] = bug_chip
+
+        # Ensure exactly 4 suggestions
+        target = 4
+        while len(payload['suggestions']) > target:
+             payload['suggestions'].pop()
+        while len(payload['suggestions']) < target:
+             payload['suggestions'].append({"label": "Analyze Screen", "hint": "Explain what I'm looking at right now."})
              
         payload['screen_context'] = ctx.best_text()
         payload['window_title']   = ctx.window_title
