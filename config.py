@@ -7,7 +7,7 @@ OLLAMA_MODEL        = "llava"
 OLLAMA_VISION_MODEL = "llava"
 OLLAMA_TEXT_MODEL   = "llava"
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────────────────────────────
 # Observer Settings
 # ─────────────────────────────────────────────────────────────────────────────
 CHECK_INTERVAL      = 1.0   # Seconds between proactive loop ticks

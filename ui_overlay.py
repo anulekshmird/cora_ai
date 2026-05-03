@@ -172,9 +172,9 @@ class ProactiveBubble(QWidget):
 
         self.screen_geo            = QApplication.primaryScreen().availableGeometry()
         self.bubble_size           = 70
-        self.panel_width           = 340
-        self.panel_height          = 270
-        self.panel_expanded_height = 370
+        self.panel_width           = 420
+        self.panel_height          = 200 # Initial, will be dynamic
+        self.panel_expanded_height = 400 # Max hint
         self.margin                = 20
 
         self.setGeometry(0, 0, 0, 0)
@@ -199,12 +199,12 @@ class ProactiveBubble(QWidget):
             QLabel#header  { font-weight: bold; font-size: 14px; color: white; }
             QLabel#content { font-size: 13px; line-height: 1.4; color: #cbd5e1; }
         """)
-        self.panel.setMinimumWidth(320)
-        self.panel.setMaximumWidth(380)
+        self.panel.setMinimumWidth(400)
+        self.panel.setMaximumWidth(450)
 
         self.panel_layout = QVBoxLayout(self.panel)
-        self.panel_layout.setContentsMargins(20, 15, 20, 15)
-        self.panel_layout.setSpacing(8)
+        self.panel_layout.setContentsMargins(15, 12, 15, 12)
+        self.panel_layout.setSpacing(6)
 
         self.status_label = QLabel("")
         self.status_label.setObjectName("status")
@@ -227,7 +227,7 @@ class ProactiveBubble(QWidget):
         self.content_label.setObjectName("content")
         self.content_label.setWordWrap(True)
         self.content_label.setTextFormat(Qt.TextFormat.RichText)
-        self.content_label.setMaximumWidth(340)
+        self.content_label.setMaximumWidth(390)
         self.content_label.setAlignment(
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )
@@ -454,14 +454,20 @@ class ProactiveBubble(QWidget):
     def update_layout_pos(self):
         self.screen_geo = QApplication.primaryScreen().availableGeometry()
         total_w = self.bubble_size + self.margin
-        current_panel_h = (
-            self.panel_expanded_height if self.is_read_more_expanded
-            else self.panel_height
-        )
         if self.is_expanded:
             total_w += self.panel_width + 15
-            self.panel.setFixedSize(self.panel_width, current_panel_h)
-        total_h = max(self.bubble_size, current_panel_h) + self.margin
+            # Dynamic height based on content
+            self.panel.setFixedWidth(self.panel_width)
+            self.panel.layout().activate() # Ensure layout is up to date
+            actual_panel_h = self.panel.sizeHint().height()
+            self.panel.setFixedHeight(actual_panel_h)
+            current_panel_h = actual_panel_h
+        else:
+            current_panel_h = self.bubble_size
+        
+        # FIX: total_h should only include panel height if expanded
+        actual_content_h = max(self.bubble_size, current_panel_h) if self.is_expanded else self.bubble_size
+        total_h = actual_content_h + self.margin
         
         if self.user_bubble_pos:
             # Respect user's dragged position for the ORB
@@ -613,19 +619,23 @@ class ProactiveBubble(QWidget):
         except Exception:
             pass
         self._dismiss_timer.stop()
-        self.is_read_more_expanded = False
+        self.is_read_more_expanded = bool(reason_long)
         self.ask_input.clear()
 
         # Always keep panel expanded
         self.is_expanded = True
         self.panel.show()
 
-        self.content_label.setText(reason)
+        full_reason = reason
         if reason_long:
-            self.read_more_btn.show()
-            self.read_more_btn.setText("Read more")
-        else:
-            self.read_more_btn.hide()
+            # Check if reason looks like HTML or plain text
+            if "<br>" in reason or "<b>" in reason or "<i>" in reason:
+                full_reason += "<br><br>" + reason_long.replace("\n", "<br>")
+            else:
+                full_reason += "\n\n" + reason_long
+        
+        self.content_label.setText(full_reason)
+        self.read_more_btn.hide()
 
         # ── Header / orb per type ────────────────────────────────────
         TYPE_CONFIG = {
@@ -866,7 +876,8 @@ class ProactiveBubble(QWidget):
             self.dynamic_btns_layout.addWidget(btn)
 
     def _on_dismiss_clicked(self):
-        self.enter_idle_mode()
+        self.hide_bubble()
+        self._set_orb_state(self.STATE_IDLE)
         self.dismissed.emit()
 
     def _add_suggestion_chips(self, suggestions):
@@ -933,9 +944,9 @@ class ProactiveBubble(QWidget):
         if not self.is_expanded:
             self.is_expanded = True
             self.panel.show()
-            self.update_layout_pos()
-        # Intentionally never collapse on orb click
-        # Only Dismiss button collapses the panel
+        else:
+            self.hide_bubble()
+        self.update_layout_pos()
 
     def toggle_read_more(self):
         if not self.current_data:
@@ -957,8 +968,8 @@ class ProactiveBubble(QWidget):
         self.anim.stop()
         self.opacity_effect.setOpacity(1.0)
         self.current_data = None
-        self.is_expanded = True # Keep expanded
-        self.panel.show() # Keep panel visible
+        self.is_expanded = False # FIX: Collapse by default in idle mode
+        self.panel.hide() # FIX: Ensure panel is hidden
         self._set_orb_state(self.STATE_IDLE)
         self.update_layout_pos()
         self.show()
